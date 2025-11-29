@@ -94,8 +94,12 @@ class AgentConfig(BaseModel):
     output_dir: Path = Path("../output")
     credentials: Dict[str, str] = {}
     image_generation: Dict[str, Any] = {
-        "default_provider": "openai",
+        "default_provider": "gemini",
         "providers": {
+            "gemini": {
+                "model": "gemini-3-pro-image-preview",
+                "aspect_ratio": "1:1"
+            },
             "openai": {
                 "model": "gpt-image-1",
                 "size": "1024x1024",
@@ -501,19 +505,22 @@ class AINewsAgent:
             return None
 
     async def _enhance_prompt(self, text: str) -> str:
-        """Generate optimized prompt for text-in-image generation with caching for efficiency"""
+        """Generate optimized prompt for Gemini 3 Pro image generation with caching.
+        
+        Leverages Gemini's superior text rendering and instruction-following capabilities.
+        """
         if text in self._prompt_cache:
             return self._prompt_cache[text]
         try:
+            # Get AI-powered visual concept
             analysis_prompt = (
-                f"Analyze this AI news title and create a visual prompt for social media:\n"
-                f"Title: {text}\n"
-                f"Consider:\n"
-                f"1. Key technical concepts in the title\n"
-                f"2. Trending visual styles in tech (2025)\n"
-                f"3. Brand colors and typography\n"
-                f"4. Text placement for maximum readability\n\n"
-                f"Return ONLY the visual description without any explanations."
+                f"Create a concise visual concept for this AI news headline:\n"
+                f"'{text}'\n\n"
+                f"Describe in 2-3 sentences:\n"
+                f"- Main visual metaphor or scene\n"
+                f"- Key visual elements that represent the technology\n"
+                f"- Mood and atmosphere\n\n"
+                f"Return ONLY the visual description, no explanations."
             )
 
             response = await asyncio.to_thread(
@@ -521,25 +528,39 @@ class AINewsAgent:
                 analysis_prompt
             )
 
-            visual_description = response.text.strip()
+            visual_concept = response.text.strip()
 
+            # Structured prompt optimized for Gemini 3 Pro
             enhanced_prompt = (
-                f"{visual_description} {self.brand_manager.theme_prompt} "
-                f"Text overlay requirements: "
-                f"- Exact title text: '{text}' "
-                f"- Font size: 48-60pt for main text "
-                f"- Position: Lower third with gradient backdrop "
-                f"- Effects: Subtle drop shadow and outer glow "
-                f"- Aspect ratio: 1:1 for social media "
-                f"- Style: {self.brand_manager.theme.visual_style} "
-                f"- Technical accuracy: High"
+                f"Create a professional social media image for AI/tech news.\n\n"
+                f"VISUAL CONCEPT:\n{visual_concept}\n\n"
+                f"HEADLINE TEXT TO RENDER:\n\"{text}\"\n\n"
+                f"DESIGN SPECIFICATIONS:\n"
+                f"- Style: {self.brand_manager.theme.visual_style}, modern, clean\n"
+                f"- Color scheme: Primary {self.brand_manager.theme.primary_color}, "
+                f"Accent {self.brand_manager.theme.accent_color}, "
+                f"Background {self.brand_manager.theme.background_color}\n"
+                f"- Typography: Bold, sans-serif, high contrast, fully readable\n"
+                f"- Text placement: Prominent position with dark gradient backdrop for legibility\n"
+                f"- Composition: Professional tech visualization with depth and dimension\n"
+                f"- Quality: High-resolution, sharp details, no artifacts\n\n"
+                f"IMPORTANT: Render the headline text clearly and accurately. "
+                f"Text must be the focal point and completely legible."
             )
+            
             self._prompt_cache[text] = enhanced_prompt
             return enhanced_prompt
 
         except Exception as e:
             self.logger.error(f"Prompt enhancement failed for '{text}': {e}")
-            fallback = f"Professional tech infographic style: {text} {self.brand_manager.theme_prompt}"
+            # Improved fallback prompt for Gemini 3 Pro
+            fallback = (
+                f"Professional tech news social media image.\n"
+                f"Headline: \"{text}\"\n"
+                f"Style: {self.brand_manager.theme.visual_style}, futuristic\n"
+                f"Colors: {self.brand_manager.theme.primary_color} primary, dark background\n"
+                f"Render headline text prominently with high contrast and readability."
+            )
             self._prompt_cache[text] = fallback
             return fallback
 
